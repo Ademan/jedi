@@ -55,12 +55,12 @@ class Script(object):
     :param path: The path of the file in the file system, or ``''`` if
         it hasn't been saved yet.
     :type path: str or None
-    :param source_encoding: The encoding of ``source``, if it is not a
+    :param encoding: The encoding of ``source``, if it is not a
         ``unicode`` object (default ``'utf-8'``).
-    :type source_encoding: str
+    :type encoding: str
     """
     def __init__(self, source=None, line=None, column=None, path=None,
-                 source_encoding='utf-8', source_path=None):
+                 encoding='utf-8', source_path=None):
         if source_path is not None:
             warnings.warn("Use path instead of source_path.", DeprecationWarning)
             path = source_path
@@ -84,7 +84,7 @@ class Script(object):
 
         api_classes._clear_caches()
         debug.reset_time()
-        self.source = modules.source_to_unicode(source, source_encoding)
+        self.source = modules.source_to_unicode(source, encoding)
         self._pos = self._line, self._column
         self._module = modules.ModuleWithCursor(
             path, source=self.source, position=self._pos)
@@ -379,7 +379,7 @@ class Script(object):
         scopes |= keywords.keywords(string=goto_path, pos=self._pos)
 
         d = set([api_classes.Definition(s) for s in scopes
-                 if not isinstance(s, imports.ImportPath._GlobalNamespace)])
+                 if s is not imports.ImportPath.GlobalNamespace])
         return self._sorted_defs(d)
 
     @api_classes._clear_caches_after_call
@@ -394,7 +394,7 @@ class Script(object):
         """
         results, _ = self._goto()
         d = [api_classes.Definition(d) for d in set(results)
-             if not isinstance(d, imports.ImportPath._GlobalNamespace)]
+             if d is not imports.ImportPath.GlobalNamespace]
         return self._sorted_defs(d)
 
     def _goto(self, add_import_name=False):
@@ -660,7 +660,7 @@ class Interpreter(Script):
 
 
 
-def defined_names(source, path=None, source_encoding='utf-8'):
+def defined_names(source, path=None, encoding='utf-8'):
     """
     Get all definitions in `source` sorted by its position.
 
@@ -673,7 +673,7 @@ def defined_names(source, path=None, source_encoding='utf-8'):
     :rtype: list of api_classes.Definition
     """
     parser = Parser(
-        modules.source_to_unicode(source, source_encoding),
+        modules.source_to_unicode(source, encoding),
         module_path=path,
     )
     return api_classes._defined_names(parser.module)

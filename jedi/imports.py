@@ -39,21 +39,11 @@ class ImportPath(pr.Base):
     """
     An ImportPath is the path of a `pr.Import` object.
     """
-    class _GlobalNamespace(object):
+    class GlobalNamespace(object):
         def __init__(self):
-            self.start_pos = 0, 0
             self.line_offset = 0
 
-        def get_defined_names(self):
-            return []
-
-        def get_imports(self):
-            return []
-
-        def get_parent_until(self):
-            return None
-
-    GlobalNamespace = _GlobalNamespace()
+    GlobalNamespace = GlobalNamespace()
 
     def __init__(self, import_stmt, is_like_search=False, kill_count=0,
                  direct_resolve=False, is_just_from=False):
@@ -281,6 +271,28 @@ class ImportPath(pr.Base):
         return []
 
     def _follow_file_system(self):
+        if self.file_path:
+            sys_path_mod = list(self._sys_path_with_modifications())
+            module = self.import_stmt.get_parent_until()
+            if not module.has_explicit_absolute_import:
+                # If the module explicitly asks for absolute imports,
+                # there's probably a bogus local one.
+                sys_path_mod.insert(0, self.file_path)
+
+            # First the sys path is searched normally and if that doesn't
+            # succeed, try to search the parent directories, because sometimes
+            # Jedi doesn't recognize sys.path modifications (like py.test
+            # stuff).
+            old_path, temp_path = self.file_path, os.path.dirname(self.file_path)
+            while old_path != temp_path:
+                sys_path_mod.append(temp_path)
+                old_path, temp_path = temp_path, os.path.dirname(temp_path)
+        else:
+            sys_path_mod = list(modules.get_sys_path())
+
+        return self._follow_sys_path(sys_path_mod)
+
+    def _follow_sys_path(self, sys_path):
         """
         Find a module with a path (of the module, like usb.backend.libusb10).
         """
@@ -300,26 +312,13 @@ class ImportPath(pr.Base):
                 debug.dbg('search_module', string, self.file_path)
                 # Override the sys.path. It works only good that way.
                 # Injecting the path directly into `find_module` did not work.
-                sys.path, temp = sys_path_mod, sys.path
+                sys.path, temp = sys_path, sys.path
                 try:
                     importing = find_module(string)
                 finally:
                     sys.path = temp
 
             return importing
-
-        if self.file_path:
-            sys_path_mod = list(self._sys_path_with_modifications())
-            module = self.import_stmt.get_parent_until()
-            if not module.has_explicit_absolute_import:
-                # If the module explicitly asks for absolute imports,
-                # there's probably a bogus local one.
-                sys_path_mod.insert(0, self.file_path)
-        else:
-            sys_path_mod = list(modules.get_sys_path())
-
-        def module_not_found():
-            raise ModuleNotFound('The module you searched has not been found')
 
         current_namespace = (None, None, None)
         # now execute those paths
@@ -350,12 +349,8 @@ class ImportPath(pr.Base):
                         rest = self.import_path[i:]
                         break
                     else:
-                        module_not_found()
+                        raise ModuleNotFound('The module you searched has not been found')
 
-        if current_namespace == (None, None, False):
-            module_not_found()
-
-        sys_path_mod.pop(0)  # TODO why is this here?
         path = current_namespace[1]
         is_package_directory = current_namespace[2]
 
