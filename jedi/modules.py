@@ -285,6 +285,15 @@ def read_pth_paths(path):
                 continue
             yield line.rstrip()
 
+def gather_site_dir_paths(path):
+    for f in os.listdir(path):
+        if f.endswith('.pth'):
+            for module_path in read_pth_paths(os.path.join(path, f)):
+                if not os.path.isabs(module_path):
+                    module_path = os.path.join(path, module_path)
+
+                yield os.path.abspath(module_path)
+
 def get_sys_path():
     def check_virtual_env(sys_path):
         """ Add virtualenv's site-packages to the `sys.path`."""
@@ -296,14 +305,8 @@ def get_sys_path():
             venv, 'lib', 'python%d.%d' % sys.version_info[:2], 'site-packages')
         sys_path.insert(0, p)
 
-        for f in os.listdir(p):
-            if f.endswith('.pth'):
-                for path in read_pth_paths(os.path.join(p, f)):
-                    if not os.path.isabs(path):
-                        path = os.path.join(p, path)
-
-                    path = os.path.abspath(path)
-                    sys_path.insert(1, path)
+        for path in gather_site_dir_paths(p):
+            sys_path.insert(1, path)
 
     check_virtual_env(sys.path)
     return [p for p in sys.path if p != ""]
