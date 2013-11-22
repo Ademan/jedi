@@ -283,7 +283,7 @@ def read_pth_paths(path):
                 continue
             elif line.startswith("#"):
                 continue
-            yield line
+            yield line.rstrip()
 
 def get_sys_path():
     def check_virtual_env(sys_path):
@@ -300,8 +300,9 @@ def get_sys_path():
             if f.endswith('.pth'):
                 for path in read_pth_paths(os.path.join(p, f)):
                     if not os.path.isabs(path):
-                        path = os.path.join(p, path.rstrip())
+                        path = os.path.join(p, path)
 
+                    path = os.path.abspath(path)
                     sys_path.insert(1, path)
 
     check_virtual_env(sys.path)
